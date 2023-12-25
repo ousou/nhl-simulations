@@ -50,8 +50,8 @@ def simulate_rocket_richard(simulations=10000):
                                                        team_records=team_records)
                     for player_id in player_ids}
     player_game_logs = {player_id:
-                        load_stats.load_player_logs_for_season(player_id, 20212022) +
-                        load_stats.load_player_logs_for_season(player_id, 20222023)
+                            load_stats.load_player_logs_for_regular_season(player_id, 20212022) +
+                            load_stats.load_player_logs_for_regular_season(player_id, 20222023)
                         for player_id in player_ids}
     import distributions
     player_distribution_list = {
