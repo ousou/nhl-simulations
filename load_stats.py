@@ -2,9 +2,11 @@ import json
 import urllib.request, urllib.error
 from dataclasses import dataclass, asdict
 from datetime import datetime
+import os
 
 NHL_GAMES_IN_SEASON = 82
-
+CURRENT_SEASON = 20232024
+CACHE_DIR = "data_cache/"
 
 def _load_data_from_nhl_api_url(url):
     request = urllib.request.Request(url)
@@ -16,6 +18,7 @@ def _load_data_from_nhl_api_url(url):
 @dataclass
 class TeamRecord:
     id: int
+    abbrev: str
     name: str
     wins: int
     losses: int
@@ -56,21 +59,31 @@ class PlayerStats:
         return asdict(self)
 
 
+def load_team_abbrev_to_id():
+    url = f"https://api.nhle.com/stats/rest/en/team/"
+    data = _load_data_from_nhl_api_url(url)
+    team_abbrev_to_id = {}
+    for team in data["data"]:
+        team_abbrev_to_id[team["triCode"]] = team["id"]
+    return team_abbrev_to_id
+
+
 def load_standings():
-    with urllib.request.urlopen("http://statsapi.web.nhl.com/api/v1/standings") as u:
-        return json.loads(u.read().decode())
+    current_date = datetime.strftime(datetime.now(), "%Y-%m-%d")
+    url = f"https://api-web.nhle.com/v1/standings/{current_date}"
+    return _load_data_from_nhl_api_url(url)
 
 def player_to_team(player_id):
-    url = f"http://statsapi.web.nhl.com/api/v1/people/{player_id}"
-    with urllib.request.urlopen(url) as u:
-        player_stats = json.loads(u.read().decode())
-    return player_stats["people"][0]["currentTeam"]["id"]
+    url = f"https://api-web.nhle.com/v1/player/{player_id}/landing/"
+    data = _load_data_from_nhl_api_url(url)
+    return data["currentTeamId"]
 
-def player_stats_for_season(player_id, season, team_records):
+def player_stats_for_season(player_id, season, team_records, player_logs_for_season=None):
     team_id = player_to_team(player_id)
     games_remaining = NHL_GAMES_IN_SEASON - team_records[team_id].games_played
-    player_logs_for_season = load_player_logs_for_regular_season(player_id=player_id,
-                                                                 season=season)
+    if player_logs_for_season is None:
+        player_logs_for_season = load_player_logs_for_regular_season(player_id=player_id,
+                                                                     season=season)
     current_stats = PlayerStats(
         player_id=player_id,
         games_played=len(player_logs_for_season),
@@ -85,33 +98,43 @@ def player_stats_for_season(player_id, season, team_records):
 
 
 
-def load_team_records(standings):
+def load_team_records():
     """
     Loads current records for each team.
-    :param: standings: Dict containing full league standings
     :return: Dict team id -> team record
     """
+    standings = load_standings()
+    team_abbrev_to_id = load_team_abbrev_to_id()
     team_records = {}
-    for division in standings["records"]:
-        for team in division["teamRecords"]:
-            team_record = TeamRecord(id=team["team"]["id"],
-                                     name=team["team"]["name"],
-                                     last_updated=datetime.strptime(team["lastUpdated"],
-                                                                    "%Y-%m-%dT%H:%M:%SZ"),
-                                     wins=team["leagueRecord"]["wins"],
-                                     losses=team["leagueRecord"]["losses"],
-                                     ot_losses=team["leagueRecord"]["ot"],
-                                     games_played=team["gamesPlayed"],
-                                     points=team["points"],
-                                     goals_for=team["goalsScored"],
-                                     goals_against=team["goalsAgainst"])
-            team_records[team_record.id] = team_record
+    for team in standings["standings"]:
+        team_record = TeamRecord(id=team_abbrev_to_id[team["teamAbbrev"]["default"]],
+                                 abbrev=team["teamAbbrev"]["default"],
+                                 name=team["teamName"]["default"],
+                                 last_updated=datetime.strptime(team["date"],
+                                                                "%Y-%m-%d"),
+                                 wins=team["wins"],
+                                 losses=team["losses"],
+                                 ot_losses=team["otLosses"],
+                                 games_played=team["gamesPlayed"],
+                                 points=team["points"],
+                                 goals_for=team["goalFor"],
+                                 goals_against=team["goalAgainst"])
+        team_records[team_record.id] = team_record
     return team_records
 
 def load_player_logs_for_regular_season(player_id, season):
     url = f"https://api-web.nhle.com/v1/player/{player_id}/game-log/{season}/2"
-    #url = f"http://statsapi.web.nhl.com/api/v1/people/{player_id}/stats?stats=gameLog&season={season}"
-    raw_log = _load_data_from_nhl_api_url(url)
+
+    cache_file = f"player_logs_{player_id}_{season}"
+    if season == CURRENT_SEASON:
+        cache_file += f"_{datetime.strftime(datetime.now(), '%Y-%m-%d')}"
+    cache_file += ".json"
+
+    raw_log = _load_from_cache(cache_file)
+    if raw_log is None:
+        raw_log = _load_data_from_nhl_api_url(url)
+        _save_to_cache(raw_log, cache_file)
+
     games = []
     for game_log in raw_log["gameLog"]:
         games.append(PlayerGameStats(player_id=player_id,
@@ -122,18 +145,27 @@ def load_player_logs_for_regular_season(player_id, season):
                                      points=game_log["points"]))
     return games
 
+def _load_from_cache(file_name):
+    if os.path.isfile(CACHE_DIR + file_name):
+        with open(CACHE_DIR + file_name) as f:
+            return json.load(f)
 
+    return None
+
+def _save_to_cache(data, file_name):
+    with open(CACHE_DIR + file_name, "w") as f:
+        json.dump(data, f)
 
 if __name__ == '__main__':
-    #standings = load_standings()
-    #team_records = load_team_records(standings)
+    team_records = load_team_records()
+    print("team_records", team_records)
     mcdavid_logs = load_player_logs_for_regular_season(8478402, 20212022)
     print("mcdavid_logs", mcdavid_logs)
     import distributions
     dist = distributions.calculate_distribution_for_player(distributions.ScoreType.GOALS, mcdavid_logs)
     print("dist",dist)
-    #mcdavid_stats = player_stats_for_season(8477500, 20222023, team_records)
-    #print("mcdavid_stats", mcdavid_stats)
-    #mcdavid_team_id = player_to_team(8478402)
-    #print("mcdavid team id", mcdavid_team_id)
-    #print("mcdavid team name", team_records[mcdavid_team_id].name)
+    mcdavid_stats = player_stats_for_season(8477500, 20222023, team_records)
+    print("mcdavid_stats", mcdavid_stats)
+    mcdavid_team_id = player_to_team(8478402)
+    print("mcdavid team id", mcdavid_team_id)
+    print("mcdavid team name", team_records[mcdavid_team_id].name)

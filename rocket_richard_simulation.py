@@ -39,25 +39,36 @@ def _simulate_season_score_for_player(player_distribution_list, player_current_s
 def simulate_rocket_richard(simulations=10000):
     score_type = ScoreType.GOALS
     import data_loader
-    player_ids = data_loader.load_player_ids("nhl_player_ids.csv")
+    player_ids = data_loader.load_player_ids("nhl_player_ids_top_10_goal_scorers_20231225.csv")
     print("player_ids", player_ids)
     import load_stats
-    standings = load_stats.load_standings()
-    team_records = load_stats.load_team_records(standings)
-    player_stats = {player_id:
-                    load_stats.player_stats_for_season(player_id=player_id,
-                                                       season=20222023,
-                                                       team_records=team_records)
-                    for player_id in player_ids}
-    player_game_logs = {player_id:
-                            load_stats.load_player_logs_for_regular_season(player_id, 20212022) +
-                            load_stats.load_player_logs_for_regular_season(player_id, 20222023)
-                        for player_id in player_ids}
+    team_records = load_stats.load_team_records()
+
+    player_game_logs_this_season = {}
+
+    player_game_logs_last_season = {}
+    for player_id in player_ids:
+        print(f"Loading game logs for player_id {player_id}")
+        this_season = load_stats.load_player_logs_for_regular_season(player_id, 20232024)
+        player_game_logs_this_season[player_id] = this_season
+        prev_season = load_stats.load_player_logs_for_regular_season(player_id, 20222023)
+        player_game_logs_last_season[player_id] = prev_season
+
+
+    player_stats = {}
+    for player_id in player_ids:
+        print(f"Loading data for player_id {player_id}")
+        player_stats[player_id] = load_stats.player_stats_for_season(player_id=player_id,
+                                                                     season=20232024,
+                                                                     team_records=team_records,
+                                                                     player_logs_for_season=player_game_logs_this_season[player_id])
+
+
     import distributions
     player_distribution_list = {
         player_id: convert_counter_to_list_distribution(
             distributions.calculate_distribution_for_player(score_type=score_type,
-                                                            player_game_stats=player_game_logs[player_id])
+                                                            player_game_stats=player_game_logs_this_season[player_id] + player_game_logs_last_season[player_id])
         )
 
         for player_id in player_ids
@@ -86,6 +97,6 @@ def simulate_rocket_richard(simulations=10000):
     return winners
 
 if __name__ == '__main__':
-    winners = simulate_rocket_richard(simulations=10000)
-    print("Top winners", winners.most_common(1000))
+    winners = simulate_rocket_richard(simulations=100)
+    print("Top winners", winners.most_common(20))
 
