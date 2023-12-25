@@ -136,7 +136,7 @@ def load_player_logs_for_regular_season(player_id, season):
         _save_to_cache(raw_log, cache_file)
 
     games = []
-    for game_log in raw_log["gameLog"]:
+    for game_log in raw_log.get("gameLog", []):
         games.append(PlayerGameStats(player_id=player_id,
                                      game_id=game_log["gameId"],
                                      date=datetime.strptime(game_log["gameDate"], "%Y-%m-%d"),

@@ -39,7 +39,7 @@ def _simulate_season_score_for_player(player_distribution_list, player_current_s
 def simulate_rocket_richard(simulations=10000):
     score_type = ScoreType.GOALS
     import data_loader
-    player_ids = data_loader.load_player_ids("nhl_player_ids_top_10_goal_scorers_20231225.csv")
+    player_ids = data_loader.load_player_ids("nhl_player_ids_top_50_goal_scorers_20231225.csv")
     print("player_ids", player_ids)
     import load_stats
     team_records = load_stats.load_team_records()
@@ -47,6 +47,7 @@ def simulate_rocket_richard(simulations=10000):
     player_game_logs_this_season = {}
 
     player_game_logs_last_season = {}
+    
     for player_id in player_ids:
         print(f"Loading game logs for player_id {player_id}")
         this_season = load_stats.load_player_logs_for_regular_season(player_id, 20232024)
@@ -76,6 +77,7 @@ def simulate_rocket_richard(simulations=10000):
 
     winners = Counter()
 
+    print(f"Running {simulations} simulations")
     for _ in range(simulations):
         result = player_score_simulation(player_ids=player_ids,
                                          player_stats=player_stats,
@@ -97,6 +99,6 @@ def simulate_rocket_richard(simulations=10000):
     return winners
 
 if __name__ == '__main__':
-    winners = simulate_rocket_richard(simulations=100)
-    print("Top winners", winners.most_common(20))
+    winners = simulate_rocket_richard(simulations=10000)
+    print("Top winners", winners.most_common(1000))
 
