@@ -5,7 +5,8 @@ from distributions import ScoreType
 
 def player_score_simulation(player_ids, player_stats,
                             player_distribution_lists,
-                            score_type: ScoreType):
+                            score_type: ScoreType,
+                            player_game_played_prob):
     assert set(player_ids) == set(player_stats.keys())
     assert set(player_ids) == set(player_distribution_lists.keys())
     total_score_for_player = Counter()
@@ -13,7 +14,8 @@ def player_score_simulation(player_ids, player_stats,
         total_score_for_player[player_id] = _simulate_season_score_for_player(
             player_distribution_list=player_distribution_lists[player_id],
             player_current_score=player_stats[player_id].asdict()[score_type.value],
-            player_games_left=player_stats[player_id].games_remaining
+            player_games_left=player_stats[player_id].games_remaining,
+            player_game_played_prob=player_game_played_prob[player_id]
         )
     return total_score_for_player
 
@@ -30,10 +32,11 @@ def _simulate_one_game(player_distribution_list):
     return random.choice(player_distribution_list)
 
 def _simulate_season_score_for_player(player_distribution_list, player_current_score,
-                                      player_games_left):
+                                      player_games_left, player_game_played_prob):
     player_total_score = player_current_score
     for _ in range(player_games_left):
-        player_total_score += _simulate_one_game(player_distribution_list)
+        if random.random() < player_game_played_prob:
+            player_total_score += _simulate_one_game(player_distribution_list)
     return player_total_score
 
 def simulate_rocket_richard(simulations=10000):
@@ -47,7 +50,7 @@ def simulate_rocket_richard(simulations=10000):
     player_game_logs_this_season = {}
 
     player_game_logs_last_season = {}
-    
+
     for player_id in player_ids:
         print(f"Loading game logs for player_id {player_id}")
         this_season = load_stats.load_player_logs_for_regular_season(player_id, 20232024)
@@ -77,12 +80,17 @@ def simulate_rocket_richard(simulations=10000):
 
     winners = Counter()
 
+    player_game_played_prob = {player_id: 1. for player_id in player_ids}
+    # Matthews is injured a bit more often
+    player_game_played_prob[8479318] = 0.92
+
     print(f"Running {simulations} simulations")
     for _ in range(simulations):
         result = player_score_simulation(player_ids=player_ids,
                                          player_stats=player_stats,
                                          player_distribution_lists=player_distribution_list,
-                                         score_type=score_type)
+                                         score_type=score_type,
+                                         player_game_played_prob=player_game_played_prob)
         top_results = list(result.most_common(10))
         tied_players = [top_results[0][0]]
         highest_score = top_results[0][1]

@@ -75,7 +75,13 @@ def load_standings():
 
 def player_to_team(player_id):
     url = f"https://api-web.nhle.com/v1/player/{player_id}/landing/"
-    data = _load_data_from_nhl_api_url(url)
+    cache_file = f"player_to_team{player_id}__{datetime.strftime(datetime.now(), '%Y-%m-%d')}"
+    cache_file += ".json"
+
+    data = _load_from_cache(cache_file)
+    if data is None:
+        data = _load_data_from_nhl_api_url(url)
+        _save_to_cache(data, cache_file)
     return data["currentTeamId"]
 
 def player_stats_for_season(player_id, season, team_records, player_logs_for_season=None):
