@@ -42,7 +42,7 @@ def _simulate_season_score_for_player(player_distribution_list, player_current_s
 def simulate_rocket_richard(simulations=10000):
     score_type = ScoreType.GOALS
     import data_loader
-    player_ids = data_loader.load_player_ids("nhl_player_ids_top_50_goal_scorers_20231225.csv")
+    player_ids = data_loader.load_player_ids("nhl_player_ids_top_100_goal_scorers_20231230.csv")
     print("player_ids", player_ids)
     import load_stats
     team_records = load_stats.load_team_records()
